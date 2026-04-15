@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+        background: #f0f2ff;
+        min-height: 100vh;
+    }
+    .navbar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .stat-card {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .url-card {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    .url-card:hover {
+        transform: translateY(-3px);
+    }
+    .short-code-badge {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .chart-card {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+    .click-row {
+        border-radius: 10px;
+        background: #f8f9ff;
+        margin-bottom: 8px;
+        padding: 10px 15px;
+    }
+    .click-row:hover {
+        background: #eef0ff;
+        cursor: pointer;
+    }
+    .loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+    }
+    .btn-outline-danger:hover {
+        background: #dc3545;
+        color: white;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark px-4 py-3">
+  <a class="navbar-brand fw-bold fs-4" href="/index.html">
+    ✂️ URL Shortener
+  </a>
+  <a href="/index.html" class="btn btn-light btn-sm">
+    <i class="bi bi-plus-circle"></i> Shorten New URL
+  </a>
+</nav>
+
+<div class="container py-4">
+
+  <!-- Page Title -->
+  <h3 class="fw-bold mb-4 text-dark">
+    <i class="bi bi-speedometer2"></i> Analytics Dashboard
+  </h3>
+
+  <!-- Stats Row -->
+  <div class="row g-3 mb-4" id="statsRow">
+    <div class="col-md-4">
+      <div class="card stat-card p-4">
+        <p class="text-muted mb-1">Total URLs Created</p>
+        <div class="stat-number" id="totalUrls">-</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card stat-card p-4">
+        <p class="text-muted mb-1">Total Clicks</p>
+        <div class="stat-number" id="totalClicks">-</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card stat-card p-4">
+        <p class="text-muted mb-1">Most Clicked URL</p>
+        <div class="stat-number" id="mostClicked">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All URLs Table -->
+  <div class="card chart-card p-4 mb-4">
+    <h5 class="fw-bold mb-3">
+      <i class="bi bi-link-45deg"></i> All Shortened URLs
+    </h5>
+    <div id="urlsContainer">
+      <div class="loading">
+        <div class="spinner-border text-primary"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Detail -->
+  <div class="card chart-card p-4 mb-4 d-none" id="detailCard">
+    <h5 class="fw-bold mb-3">
+      <i class="bi bi-bar-chart"></i> Click Details —
+      <span id="detailShortCode" class="text-primary"></span>
+    </h5>
+
+    <div class="row">
+      <div class="col-md-5 mb-3">
+        <canvas id="deviceChart" height="200"></canvas>
+      </div>
+      <div class="col-md-7">
+        <h6 class="fw-bold mb-3">Recent Clicks</h6>
+        <div id="clicksList"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let allUrls = [];
+  let deviceChart = null;
+
+  // Load everything on page load
+  document.addEventListener('DOMContentLoaded', () => {
+      loadAllUrls();
+
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (code) loadAnalytics(code);
+  });
+
+  // Load all URLs
+  async function loadAllUrls() {
+      try {
+          const response = await fetch('http://localhost:8080/api/urls');
+          allUrls = await response.json();
+
+          // Update stats
+          document.getElementById('totalUrls').textContent = allUrls.length;
+          const total = allUrls.reduce((sum, u) => sum + u.totalClicks, 0);
+          document.getElementById('totalClicks').textContent = total;
+
+          const most = allUrls.reduce((max, u) =>
+              u.totalClicks > (max?.totalClicks || 0) ? u : max, null);
+          document.getElementById('mostClicked').textContent =
+              most ? most.shortCode : 'N/A';
+
+          // Render URL rows
+          const container = document.getElementById('urlsContainer');
+          if (allUrls.length === 0) {
+              container.innerHTML = `
+                  <div class="text-center text-muted py-4">
+                      <i class="bi bi-inbox fs-1"></i>
+                      <p class="mt-2">No URLs shortened yet!</p>
+                      <a href="/index.html" class="btn btn-primary btn-sm">
+                          Shorten your first URL
+                      </a>
+                  </div>`;
+              return;
+          }
+
+          container.innerHTML = allUrls.map(url => `
+              <div class="click-row d-flex align-items-center justify-content-between"
+                   onclick="loadAnalytics('${url.shortCode}')">
+                  <div class="flex-grow-1 me-3">
+                      <span class="short-code-badge me-2">${url.shortCode}</span>
+                      <small class="text-muted">${truncate(url.originalUrl, 50)}</small>
+                  </div>
+                  <div class="d-flex align-items-center gap-3">
+                      <span class="badge bg-light text-dark">
+                          <i class="bi bi-cursor-fill text-primary"></i>
+                          ${url.totalClicks} clicks
+                      </span>
+                      <a href="http://localhost:8080/api/r/${url.shortCode}"
+                         target="_blank"
+                         class="btn btn-outline-primary btn-sm"
+                         onclick="event.stopPropagation()">
+                          <i class="bi bi-box-arrow-up-right"></i>
+                      </a>
+                      <button
+                          class="btn btn-outline-danger btn-sm"
+                          onclick="event.stopPropagation(); deleteUrl('${url.shortCode}')">
+                          <i class="bi bi-trash"></i>
+                      </button>
+                  </div>
+              </div>
+          `).join('');
+
+      } catch (error) {
+          document.getElementById('urlsContainer').innerHTML =
+              '<div class="alert alert-danger">Failed to load URLs</div>';
+      }
+  }
+
+  // Load analytics for a specific short code
+  async function loadAnalytics(shortCode) {
+      try {
+          const response = await fetch(
+              `http://localhost:8080/api/analytics/${shortCode}`);
+          const data = await response.json();
+
+          document.getElementById('detailCard').classList.remove('d-none');
+          document.getElementById('detailShortCode').textContent = shortCode;
+
+          // Device breakdown chart
+          const clicks = data.clicks || [];
+          const mobile = clicks.filter(c => c.deviceType === 'Mobile').length;
+          const desktop = clicks.filter(c => c.deviceType === 'Desktop').length;
+
+          if (deviceChart) deviceChart.destroy();
+          deviceChart = new Chart(
+              document.getElementById('deviceChart'), {
+              type: 'doughnut',
+              data: {
+                  labels: ['Desktop', 'Mobile'],
+                  datasets: [{
+                      data: [desktop, mobile],
+                      backgroundColor: ['#667eea', '#764ba2'],
+                      borderWidth: 0
+                  }]
+              },
+              options: {
+                  plugins: {
+                      legend: { position: 'bottom' },
+                      title: {
+                          display: true,
+                          text: 'Clicks by Device'
+                      }
+                  }
+              }
+          });
+
+          // Recent clicks list
+          const clicksList = document.getElementById('clicksList');
+          if (clicks.length === 0) {
+              clicksList.innerHTML =
+                  '<p class="text-muted">No clicks yet</p>';
+          } else {
+              clicksList.innerHTML = clicks.slice(-10).reverse().map(c => `
+                  <div class="click-row d-flex justify-content-between">
+                      <span>
+                          <i class="bi bi-${c.deviceType === 'Mobile' ?
+                              'phone' : 'laptop'} text-primary"></i>
+                          ${c.deviceType} · ${c.browser}
+                      </span>
+                      <small class="text-muted">
+                          ${new Date(c.clickedAt).toLocaleString()}
+                      </small>
+                  </div>
+              `).join('');
+          }
+
+          // Scroll to detail
+          document.getElementById('detailCard')
+              .scrollIntoView({ behavior: 'smooth' });
+
+      } catch (error) {
+          console.error('Failed to load analytics', error);
+      }
+  }
+
+  // Delete a URL
+  async function deleteUrl(shortCode) {
+      if (!confirm(
+          `Are you sure you want to delete "${shortCode}"? This cannot be undone!`
+      )) {
+          return;
+      }
+
+      try {
+          const response = await fetch(
+              `http://localhost:8080/api/urls/${shortCode}`, {
+              method: 'DELETE'
+          });
+
+          if (response.ok) {
+              alert(`"${shortCode}" deleted successfully! ✅`);
+              loadAllUrls();
+
+              // Hide detail card if it was showing deleted URL
+              document.getElementById('detailCard').classList.add('d-none');
+          } else {
+              alert('Failed to delete URL. Please try again.');
+          }
+      } catch (error) {
+          alert('Cannot connect to server.');
+      }
+  }
+
+  function truncate(str, n) {
+      return str.length > n ? str.substring(0, n) + '...' : str;
+  }
+</script>
+</body>
+</html>

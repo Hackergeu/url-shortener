@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border: none;
+        }
+        .btn-shorten {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 30px;
+            font-weight: 600;
+        }
+        .btn-shorten:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .result-box {
+            background: #f8f9ff;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            display: none;
+        }
+        .short-url {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 1.1rem;
+            word-break: break-all;
+        }
+        input.form-control {
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+        }
+        input.form-control:focus {
+            border-color: #667eea;
+            box-shadow: none;
+        }
+        .input-group-text {
+            background: #f8f9ff;
+            border: 2px solid #e0e0e0;
+            border-right: none;
+            border-radius: 10px 0 0 10px;
+            font-size: 0.85rem;
+        }
+        .input-group input {
+            border-radius: 0 10px 10px 0 !important;
+            border-left: none !important;
+        }
+        .title {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            font-size: 2.5rem;
+        }
+        .expiry-badge {
+            font-size: 0.75rem;
+            color: #764ba2;
+            margin-top: 4px;
+        }
+        .qr-container {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .qr-container img {
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            padding: 8px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <div class="card p-5">
+
+                <!-- Header -->
+                <div class="text-center mb-4">
+                    <h1 class="title">✂️ URL Shortener</h1>
+                    <p class="text-muted">Paste your long URL and get a short one instantly</p>
+                </div>
+
+                <!-- Input -->
+                <div class="mb-3">
+                    <input
+                            type="url"
+                            id="originalUrl"
+                            class="form-control"
+                            placeholder="https://your-long-url.com/paste-here">
+                </div>
+
+                <!-- Custom Alias -->
+                <div class="mb-3 input-group">
+                        <span class="input-group-text text-muted">
+                            localhost:8080/api/r/
+                        </span>
+                    <input
+                            type="text"
+                            id="customAlias"
+                            class="form-control"
+                            placeholder="custom-alias (optional, max 15 chars)"
+                            maxlength="15">
+                </div>
+
+                <!-- Expiry Days -->
+                <div class="mb-3 input-group">
+                        <span class="input-group-text text-muted">
+                            <i class="bi bi-calendar"></i>
+                        </span>
+                    <input
+                            type="number"
+                            id="expiryDays"
+                            class="form-control"
+                            placeholder="Expire after how many days? (optional)"
+                            min="1"
+                            max="365">
+                </div>
+
+                <!-- Shorten Button -->
+                <div class="d-grid mb-4">
+                    <button class="btn btn-shorten btn-lg text-white" onclick="shortenUrl()">
+                        <i class="bi bi-scissors"></i> Shorten URL
+                    </button>
+                </div>
+
+                <!-- Result Box -->
+                <div class="result-box p-4 mb-3" id="resultBox">
+                    <p class="text-muted mb-2">Your short URL is ready! 🎉</p>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="short-url flex-grow-1" id="shortUrlDisplay"></span>
+                        <button class="btn btn-outline-primary btn-sm" onclick="copyUrl()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                        <a id="analyticsLink" href="#"
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-bar-chart"></i> Stats
+                        </a>
+                    </div>
+                    <div class="expiry-badge" id="expiryBadge"></div>
+
+                    <!-- QR Code Section -->
+                    <div class="qr-container" id="qrContainer">
+                        <p class="text-muted mb-2">
+                            <i class="bi bi-qr-code"></i> Scan QR Code
+                        </p>
+                        <img id="qrImage" src="" alt="QR Code" width="150" height="150">
+                        <br>
+                        <a id="qrDownload" href="#" download="qrcode.png"
+                           class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="bi bi-download"></i> Download QR
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Error Box -->
+                <div id="errorBox" class="alert alert-danger d-none">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <span id="errorMessage"></span>
+                </div>
+
+                <!-- Dashboard Link -->
+                <div class="text-center mt-2">
+                    <a href="/dashboard.html" class="text-muted text-decoration-none">
+                        <i class="bi bi-speedometer2"></i> View All URLs Dashboard
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentShortCode = '';
+
+    async function shortenUrl() {
+        const originalUrl = document.getElementById('originalUrl').value.trim();
+        const errorBox = document.getElementById('errorBox');
+        const resultBox = document.getElementById('resultBox');
+
+        // Hide previous results
+        errorBox.classList.add('d-none');
+        resultBox.style.display = 'none';
+
+        // Validate
+        if (!originalUrl) {
+            showError('Please enter a URL');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8080/api/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    originalUrl: originalUrl,
+                    customAlias: document.getElementById('customAlias').value.trim(),
+                    expiryDays: document.getElementById('expiryDays').value.trim()
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                currentShortCode = data.shortCode;
+                const shortUrl = `http://localhost:8080/api/r/${data.shortCode}`;
+
+                document.getElementById('shortUrlDisplay').textContent = shortUrl;
+                document.getElementById('analyticsLink').href =
+                    `/dashboard.html?code=${data.shortCode}`;
+
+                // Show expiry info
+                const expiryDays = document.getElementById('expiryDays').value.trim();
+                const expiryBadge = document.getElementById('expiryBadge');
+                if (expiryDays) {
+                    expiryBadge.innerHTML =
+                        `<i class="bi bi-clock"></i> Expires in ${expiryDays} day(s)`;
+                } else {
+                    expiryBadge.innerHTML =
+                        `<i class="bi bi-infinity"></i> Never expires`;
+                }
+
+                // Load QR Code
+                const qrUrl = `http://localhost:8080/api/qr/${data.shortCode}`;
+                const qrImage = document.getElementById('qrImage');
+                qrImage.src = qrUrl;
+
+                // Set download link
+                document.getElementById('qrDownload').href = qrUrl;
+
+                resultBox.style.display = 'block';
+
+            } else {
+                const errorText = await response.text();
+                showError(errorText || 'Something went wrong. Please try again.');
+            }
+        } catch (error) {
+            showError('Cannot connect to server. Make sure the app is running.');
+        }
+    }
+
+    function copyUrl() {
+        const shortUrl = document.getElementById('shortUrlDisplay').textContent;
+        navigator.clipboard.writeText(shortUrl);
+        alert('URL copied to clipboard! ✅');
+    }
+
+    function showError(message) {
+        const errorBox = document.getElementById('errorBox');
+        document.getElementById('errorMessage').textContent = message;
+        errorBox.classList.remove('d-none');
+    }
+
+    // Allow pressing Enter key
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('originalUrl')
+            .addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') shortenUrl();
+        });
+    });
+</script>
+</body>
+</html>
